@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import typing as t
 
 from abc import ABCMeta, abstractmethod
@@ -100,6 +101,7 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
 
     def __init__(self, fields: t.Optional[t.Mapping[str, Field]] = None):
         if fields is not None:
+            self.fields = copy.copy(self.fields)
             self.fields.update(fields)
 
     @property
