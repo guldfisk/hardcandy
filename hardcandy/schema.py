@@ -60,12 +60,14 @@ class Field(t.Generic[T]):
     required: bool
     read_only: bool
     write_only: bool
+    default: t.Optional[T]
 
     def __init__(self, **kwargs):
         self.name = kwargs.get('name')
         self.required = kwargs.get('required', True)
         self.read_only = kwargs.get('read_only', False)
         self.write_only = kwargs.get('write_only', False)
+        self.default = kwargs.get('default', None)
 
     def serialize(self, value: T) -> t.Any:
         return value
@@ -96,6 +98,18 @@ class SchemaMeta(ABCMeta):
 
 class Schema(t.Generic[T], metaclass = SchemaMeta):
 
+    def __init__(self, fields: t.Optional[t.Mapping[str, Field]] = None):
+        if fields is not None:
+            self.fields.update(fields)
+
+    @property
+    def default(self) -> Serialized:
+        return {
+            name: field.default
+            for name, field in
+            self.fields.items()
+        }
+
     def serialize(self, instance: object) -> Serialized:
         return {
             name: field.serialize(getattr(instance, name))
@@ -114,9 +128,12 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
             try:
                 value = serialized[name]
             except KeyError:
-                if field.required:
-                    errors.append(ValidationError(field, 'missing required value'))
-                continue
+                if field.default is not None:
+                    value = field.default
+                else:
+                    if field.required:
+                        errors.append(ValidationError(field, 'missing required value'))
+                    continue
 
             try:
                 values[name] = field.deserialize(value)
