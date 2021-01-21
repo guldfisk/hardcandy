@@ -19,4 +19,7 @@ setup(
     packages = ['hardcandy'],
     package_data = {'': extra_files},
     include_package_data = True,
+    install_requires = [
+        'yeetlong @ https://github.com/guldfisk/yeetlong/tarball/master#egg=yeetlong-1.0',
+    ],
 )

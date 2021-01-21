@@ -4,7 +4,7 @@ import typing as t
 from enum import Enum as _Enum
 from distutils.util import strtobool
 
-from hardcandy.schema import Field, ValidationError
+from hardcandy.schema import Field, ValidationError, T, Primitive
 
 
 class Integer(Field[int]):
@@ -14,7 +14,7 @@ class Integer(Field[int]):
         self._min = kwargs.get('min')
         self._max = kwargs.get('max')
 
-    def deserialize(self, value: t.Any) -> int:
+    def deserialize(self, value: Primitive) -> int:
         try:
             _value = int(value)
         except ValueError:
@@ -30,15 +30,20 @@ class Integer(Field[int]):
             )
         return _value
 
+    def deserialize_naive(self, value: Primitive) -> T:
+        return int(value)
+
 
 class Bool(Field[bool]):
 
-    def deserialize(self, value: t.Any) -> bool:
+    def deserialize(self, value: Primitive) -> bool:
         try:
-            _value = strtobool(str(value))
+            return strtobool(str(value))
         except ValueError:
             raise ValidationError(self, 'invalid value "{}"'.format(value))
-        return _value
+
+    def deserialize_naive(self, value: Primitive) -> T:
+        return value
 
 
 class Text(Field[str]):
@@ -48,7 +53,7 @@ class Text(Field[str]):
         self._min = kwargs.get('min')
         self._max = kwargs.get('max')
 
-    def deserialize(self, value: t.Any) -> str:
+    def deserialize(self, value: Primitive) -> str:
         try:
             _value = str(value)
         except ValueError:
@@ -64,6 +69,9 @@ class Text(Field[str]):
             )
         return _value
 
+    def deserialize_naive(self, value: Primitive) -> T:
+        return value
+
 
 class Enum(Field[_Enum]):
 
@@ -71,15 +79,14 @@ class Enum(Field[_Enum]):
         super().__init__(**kwargs)
         self._enum = enum
 
-    def serialize(self, value: _Enum) -> t.Any:
+    def serialize(self, value: _Enum, instance: object) -> Primitive:
         return value.name
 
-    def deserialize(self, value: t.Any) -> _Enum:
+    def deserialize(self, value: Primitive) -> _Enum:
         try:
-            _value = self._enum[str(value)]
+            return self._enum[str(value)]
         except ValueError:
             raise ValidationError(self, 'invalid value "{}"'.format(value))
-        return _value
 
 
 class Datetime(Field[datetime.datetime]):
@@ -88,15 +95,29 @@ class Datetime(Field[datetime.datetime]):
         super().__init__(**kwargs)
         self._time_format = time_format
 
-    def serialize(self, value: datetime.datetime) -> t.Any:
+    def serialize(self, value: datetime.datetime, instance: object) -> Primitive:
         try:
             return value.strftime(self._time_format)
         except AttributeError:
             return None
 
-    def deserialize(self, value: t.Any) -> datetime.datetime:
+    def deserialize(self, value: Primitive) -> datetime.datetime:
         try:
-            _value = datetime.datetime.strptime(value, self._time_format)
+            return datetime.datetime.strptime(value, self._time_format)
         except (ValueError, TypeError):
             raise ValidationError(self, 'invalid value "{}"'.format(value))
-        return _value
+
+
+class Lambda(Field[T]):
+
+    def __init__(self, extractor: t.Callable[[object], Primitive], **kwargs):
+        kwargs['unbound'] = True
+        kwargs['read_only'] = True
+        super().__init__(**kwargs)
+        self._extractor = extractor
+
+    def deserialize(self, value: Primitive) -> T:
+        raise NotImplemented()
+
+    def serialize(self, value: T, instance: object) -> Primitive:
+        return self._extractor(instance)

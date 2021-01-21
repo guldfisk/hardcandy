@@ -5,10 +5,13 @@ import typing as t
 
 from abc import ABCMeta, abstractmethod
 
+from yeetlong.maps import IndexedOrderedDict
+
 
 T = t.TypeVar('T')
 
-Serialized = t.Mapping[str, t.Any]
+Primitive = t.Union[None, str, int, float, bool]
+Serialized = t.Mapping[str, Primitive]
 
 
 class CandyError(Exception):
@@ -58,36 +61,50 @@ class ValidationError(CandyError):
 
 class Field(t.Generic[T]):
     name: str
+    display_name: str
     required: bool
     read_only: bool
     write_only: bool
     default: t.Optional[T]
+    unbound: bool
 
     def __init__(self, **kwargs):
         self.name = kwargs.get('name')
+        self.display_name = kwargs.get('display_name')
         self.required = kwargs.get('required', True)
         self.read_only = kwargs.get('read_only', False)
         self.write_only = kwargs.get('write_only', False)
         self.default = kwargs.get('default', None)
+        self.unbound = kwargs.get('unbound', False)
 
-    def serialize(self, value: T) -> t.Any:
+    def serialize(self, value: T, instance: object) -> Primitive:
         return value
 
     @abstractmethod
-    def deserialize(self, value: t.Any) -> T:
+    def deserialize(self, value: Primitive) -> T:
         pass
+
+    def deserialize_naive(self, value: Primitive) -> T:
+        return self.deserialize(value)
+
+    def extract(self, instance: object) -> Primitive:
+        if self.unbound:
+            return self.serialize(None, instance)
+        return self.serialize(getattr(instance, self.name), instance)
 
 
 class SchemaMeta(ABCMeta):
-    fields: t.MutableMapping[str, Field]
+    fields: IndexedOrderedDict[str, Field]
 
     def __new__(mcs, classname, base_classes, attributes):
-        fields = {}
+        fields = IndexedOrderedDict()
 
         for key, attribute in attributes.items():
             if isinstance(attribute, Field):
                 if attribute.name is None:
                     attribute.name = key
+                if attribute.display_name is None:
+                    attribute.display_name = ' '.join(v.capitalize() for v in attribute.name.split('_'))
                 fields[attribute.name] = attribute
 
         attributes['fields'] = fields
@@ -114,9 +131,9 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
 
     def serialize(self, instance: object) -> Serialized:
         return {
-            name: field.serialize(getattr(instance, name))
-            for name, field in
-            self.fields.items()
+            field.name: field.extract(instance)
+            for field in
+            self.fields.values()
             if not field.write_only
         }
 
