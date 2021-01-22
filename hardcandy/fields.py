@@ -34,6 +34,39 @@ class Integer(Field[int]):
         return int(value)
 
 
+class Float(Field[float]):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._min = kwargs.get('min')
+        self._max = kwargs.get('max')
+        self._max_precision = kwargs.get('max_precision')
+
+    def serialize(self, value: T, instance: object) -> Primitive:
+        if self._max_precision is None:
+            return str(value)
+        return str(round(value, self._max_precision))
+
+    def deserialize(self, value: Primitive) -> T:
+        try:
+            _value = float(value)
+        except ValueError:
+            raise ValidationError(self, 'invalid value "{}"'.format(value))
+        if self._min is not None and _value < self._min or self._max is not None and _value > self._max:
+            raise ValidationError(
+                self,
+                'invalid value "{}": not in allowed range({} - {})'.format(
+                    _value,
+                    self._min,
+                    self._max,
+                )
+            )
+        return _value
+
+    def deserialize_naive(self, value: Primitive) -> T:
+        return float(value)
+
+
 class Bool(Field[bool]):
 
     def deserialize(self, value: Primitive) -> bool:
