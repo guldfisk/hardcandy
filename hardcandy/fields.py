@@ -14,6 +14,14 @@ class Integer(Field[int]):
         self._min = kwargs.get('min')
         self._max = kwargs.get('max')
 
+    @property
+    def min(self) -> int:
+        return self._min
+
+    @property
+    def max(self) -> int:
+        return self._max
+
     def deserialize(self, value: Primitive) -> int:
         try:
             _value = int(value)

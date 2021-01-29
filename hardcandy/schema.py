@@ -77,6 +77,12 @@ class Field(t.Generic[T]):
         self.default = kwargs.get('default', None)
         self.unbound = kwargs.get('unbound', False)
 
+    def update_name(self, name: str) -> None:
+        if self.name is None:
+            self.name = name
+        if self.display_name is None:
+            self.display_name = ' '.join(v.capitalize() for v in self.name.split('_'))
+
     def serialize(self, value: T, instance: object) -> Primitive:
         return value
 
@@ -101,10 +107,7 @@ class SchemaMeta(ABCMeta):
 
         for key, attribute in attributes.items():
             if isinstance(attribute, Field):
-                if attribute.name is None:
-                    attribute.name = key
-                if attribute.display_name is None:
-                    attribute.display_name = ' '.join(v.capitalize() for v in attribute.name.split('_'))
+                attribute.update_name(key)
                 fields[attribute.name] = attribute
 
         attributes['fields'] = fields
@@ -119,6 +122,8 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
     def __init__(self, fields: t.Optional[t.Mapping[str, Field]] = None):
         if fields is not None:
             self.fields = copy.copy(self.fields)
+            for name, field in fields.items():
+                field.update_name(name)
             self.fields.update(fields)
 
     @property
