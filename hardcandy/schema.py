@@ -10,7 +10,8 @@ from yeetlong.maps import IndexedOrderedDict
 
 T = t.TypeVar('T')
 
-Primitive = t.Union[None, str, int, float, bool]
+# Primitive = t.Union[None, str, int, float, bool]
+Primitive = t.Any
 Serialized = t.Mapping[str, Primitive]
 
 
@@ -22,30 +23,55 @@ class SerializationError(CandyError):
     pass
 
 
-class DeserializationError(CandyError):
+class BaseValidationError(CandyError):
 
-    def __init__(self, errors: t.Sequence[ValidationError]) -> None:
+    @property
+    @abstractmethod
+    def serialized(self) -> t.Any:
+        pass
+
+
+class DeserializationError(BaseValidationError):
+
+    def __init__(self, errors: t.Sequence[BaseValidationError]) -> None:
         super().__init__()
         self._errors = errors
 
     @property
-    def errors(self) -> t.Sequence[ValidationError]:
+    def errors(self) -> t.Sequence[BaseValidationError]:
         return self._errors
 
     @property
     def serialized(self):
         return {
             'errors': [
-                (error.field.name, error.reason)
+                error.serialized
                 for error in
                 self._errors
             ]
         }
 
 
-class ValidationError(CandyError):
+class ValidationError(BaseValidationError):
 
-    def __init__(self, field: Field, reason: str) -> None:
+    def __init__(self, reason: str) -> None:
+        super().__init__()
+        self._reason = reason
+
+    @property
+    def reason(self) -> str:
+        return self._reason
+
+    @property
+    def serialized(self) -> t.Any:
+        return {
+            'error': self._reason,
+        }
+
+
+class FieldValidationError(BaseValidationError):
+
+    def __init__(self, field: Field, reason: t.Any) -> None:
         super().__init__()
         self._field = field
         self._reason = reason
@@ -55,8 +81,15 @@ class ValidationError(CandyError):
         return self._field
 
     @property
-    def reason(self) -> str:
+    def reason(self) -> t.Any:
         return self._reason
+
+    @property
+    def serialized(self) -> t.Any:
+        return {
+            'field': self._field.name,
+            'error': self._reason,
+        }
 
 
 class Field(t.Generic[T]):
@@ -145,6 +178,10 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
     def deserialize_raw(self, serialized: Serialized) -> Serialized:
         errors = []
         values = {}
+
+        if not isinstance(serialized, t.Mapping):
+            raise DeserializationError((ValidationError('invalid input format'),))
+
         for name, field in self.fields.items():
             if field.read_only:
                 continue
@@ -156,12 +193,12 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
                     value = field.default
                 else:
                     if field.required:
-                        errors.append(ValidationError(field, 'missing required value'))
+                        errors.append(FieldValidationError(field, f'missing required value "{field.name}"'))
                     continue
 
             try:
                 values[name] = field.deserialize(value)
-            except ValidationError as e:
+            except BaseValidationError as e:
                 errors.append(e)
 
         if errors:
