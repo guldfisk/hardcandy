@@ -107,29 +107,32 @@ class Field(t.Generic[T]):
         self.required = kwargs.get('required', True)
         self.read_only = kwargs.get('read_only', False)
         self.write_only = kwargs.get('write_only', False)
-        self.default = kwargs.get('default', None)
+        self.default = kwargs.get('default')
         self.unbound = kwargs.get('unbound', False)
+        self.source = kwargs.get('source')
 
     def update_name(self, name: str) -> None:
         if self.name is None:
             self.name = name
         if self.display_name is None:
             self.display_name = ' '.join(v.capitalize() for v in self.name.split('_'))
+        if self.source is None:
+            self.source = self.name
 
-    def serialize(self, value: T, instance: object) -> Primitive:
+    def serialize(self, value: T, instance: object, schema: Schema) -> Primitive:
         return value
 
     @abstractmethod
-    def deserialize(self, value: Primitive) -> T:
+    def deserialize(self, value: Primitive, schema: Schema) -> T:
         pass
 
-    def deserialize_naive(self, value: Primitive) -> T:
-        return self.deserialize(value)
+    def deserialize_naive(self, value: Primitive, schema: Schema) -> T:
+        return self.deserialize(value, schema)
 
-    def extract(self, instance: object) -> Primitive:
+    def extract(self, instance: object, schema: Schema) -> Primitive:
         if self.unbound:
-            return self.serialize(None, instance)
-        return self.serialize(getattr(instance, self.name), instance)
+            return self.serialize(None, instance, schema)
+        return self.serialize(getattr(instance, self.source), instance, schema)
 
 
 class SchemaMeta(ABCMeta):
@@ -137,6 +140,11 @@ class SchemaMeta(ABCMeta):
 
     def __new__(mcs, classname, base_classes, attributes):
         fields = IndexedOrderedDict()
+
+        for base_class in reversed(base_classes):
+            if issubclass(type(base_class), SchemaMeta):
+                for k, v in base_class.fields.items():
+                    fields[k] = copy.copy(v)
 
         for key, attribute in attributes.items():
             if isinstance(attribute, Field):
@@ -169,7 +177,7 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
 
     def serialize(self, instance: object) -> Serialized:
         return {
-            field.name: field.extract(instance)
+            field.name: field.extract(instance, self)
             for field in
             self.fields.values()
             if not field.write_only
@@ -182,13 +190,13 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
         if not isinstance(serialized, t.Mapping):
             raise DeserializationError((ValidationError('invalid input format'),))
 
-        for name, field in self.fields.items():
+        for field in self.fields.values():
             if field.read_only:
                 continue
 
-            try:
-                value = serialized[name]
-            except KeyError:
+            value = serialized.get(field.name)
+
+            if value is None:
                 if field.default is not None:
                     value = field.default
                 else:
@@ -197,7 +205,7 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
                     continue
 
             try:
-                values[name] = field.deserialize(value)
+                values[field.source] = field.deserialize(value, self)
             except BaseValidationError as e:
                 errors.append(e)
 
