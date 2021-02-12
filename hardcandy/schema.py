@@ -92,6 +92,9 @@ class FieldValidationError(BaseValidationError):
         }
 
 
+NO_DEFAULT_MARKER = object()
+
+
 class Field(t.Generic[T]):
     name: str
     display_name: str
@@ -107,7 +110,7 @@ class Field(t.Generic[T]):
         self.required = kwargs.get('required', True)
         self.read_only = kwargs.get('read_only', False)
         self.write_only = kwargs.get('write_only', False)
-        self.default = kwargs.get('default')
+        self.default = kwargs.get('default', NO_DEFAULT_MARKER)
         self.unbound = kwargs.get('unbound', False)
         self.source = kwargs.get('source')
 
@@ -197,7 +200,7 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
             value = serialized.get(field.name)
 
             if value is None:
-                if field.default is not None:
+                if field.default is not NO_DEFAULT_MARKER:
                     value = field.default
                 else:
                     if field.required:
