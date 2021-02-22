@@ -103,6 +103,7 @@ class Field(t.Generic[T]):
     write_only: bool
     default: t.Optional[T]
     unbound: bool
+    deserialize_none: bool
 
     def __init__(self, **kwargs):
         self.name = kwargs.get('name')
@@ -113,6 +114,7 @@ class Field(t.Generic[T]):
         self.default = kwargs.get('default', NO_DEFAULT_MARKER)
         self.unbound = kwargs.get('unbound', False)
         self.source = kwargs.get('source')
+        self.deserialize_none = kwargs.get('deserialize_none', False)
 
     def update_name(self, name: str) -> None:
         if self.name is None:
@@ -208,7 +210,10 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
                     continue
 
             try:
-                values[field.source] = field.deserialize(value, self)
+                if value is None and not field.deserialize_none:
+                    values[field.source] = None
+                else:
+                    values[field.source] = field.deserialize(value, self)
             except BaseValidationError as e:
                 errors.append(e)
 
