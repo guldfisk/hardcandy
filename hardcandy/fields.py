@@ -123,19 +123,51 @@ class Text(Field[str]):
         return value
 
 
+class MultiChoiceField(Field[str]):
+
+    def __init__(self, choices: t.AbstractSet[str], soft_match: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self._choices = choices
+        self._soft_match = soft_match
+
+    def deserialize(self, value: Primitive, schema: Schema) -> str:
+        value = str(value)
+        if value in self._choices:
+            return value
+        if self._soft_match:
+            options = []
+            value = value.lower()
+            for v in self._choices:
+                if value in v.lower():
+                    options.append(v)
+            if len(options) == 1:
+                return options[0]
+        raise FieldValidationError(self, 'invalid value "{}"'.format(value))
+
+
 class Enum(Field[_Enum]):
 
-    def __init__(self, enum: t.Type[_Enum], **kwargs):
+    def __init__(self, enum: t.Type[_Enum], soft_match: bool = False, **kwargs):
         super().__init__(**kwargs)
         self._enum = enum
+        self._soft_match = soft_match
 
     def serialize(self, value: _Enum, instance: object, schema: Schema) -> Primitive:
         return value.name
 
     def deserialize(self, value: Primitive, schema: Schema) -> _Enum:
+        value = str(value)
         try:
-            return self._enum[str(value)]
-        except (ValueError, TypeError):
+            return self._enum[value]
+        except KeyError:
+            if self._soft_match:
+                options = []
+                value = value.lower()
+                for v in self._enum:
+                    if value in v.name.lower():
+                        options.append(v)
+                if len(options) == 1:
+                    return options[0]
             raise FieldValidationError(self, 'invalid value "{}"'.format(value))
 
 
@@ -176,7 +208,7 @@ class List(Field[T]):
         ]
 
     def deserialize(self, value: Primitive, schema: Schema) -> T:
-        if not isinstance(value, t.Iterable):
+        if not isinstance(value, t.Sequence):
             raise FieldValidationError(self, 'Expected list')
 
         return [
