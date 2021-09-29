@@ -208,7 +208,7 @@ class List(Field[T]):
         ]
 
     def deserialize(self, value: Primitive, schema: Schema) -> T:
-        if not isinstance(value, t.Sequence):
+        if not isinstance(value, t.Iterable) or isinstance(value, str):
             raise FieldValidationError(self, 'Expected list')
 
         return [
