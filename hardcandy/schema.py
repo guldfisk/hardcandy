@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import copy
 import typing as t
-
 from abc import ABCMeta, abstractmethod
 
 from yeetlong.maps import IndexedOrderedDict
 
 
-T = t.TypeVar('T')
+T = t.TypeVar("T")
 
 # Primitive = t.Union[None, str, int, float, bool]
 Primitive = t.Any
@@ -24,7 +23,6 @@ class SerializationError(CandyError):
 
 
 class BaseValidationError(CandyError):
-
     @property
     @abstractmethod
     def serialized(self) -> t.Any:
@@ -32,7 +30,6 @@ class BaseValidationError(CandyError):
 
 
 class DeserializationError(BaseValidationError):
-
     def __init__(self, errors: t.Sequence[BaseValidationError]) -> None:
         super().__init__()
         self._errors = errors
@@ -43,17 +40,10 @@ class DeserializationError(BaseValidationError):
 
     @property
     def serialized(self):
-        return {
-            'errors': [
-                error.serialized
-                for error in
-                self._errors
-            ]
-        }
+        return {"errors": [error.serialized for error in self._errors]}
 
 
 class ValidationError(BaseValidationError):
-
     def __init__(self, reason: str) -> None:
         super().__init__()
         self._reason = reason
@@ -65,12 +55,11 @@ class ValidationError(BaseValidationError):
     @property
     def serialized(self) -> t.Any:
         return {
-            'error': self._reason,
+            "error": self._reason,
         }
 
 
 class FieldValidationError(BaseValidationError):
-
     def __init__(self, field: Field, reason: t.Any) -> None:
         super().__init__()
         self._field = field
@@ -87,8 +76,8 @@ class FieldValidationError(BaseValidationError):
     @property
     def serialized(self) -> t.Any:
         return {
-            'field': self._field.name,
-            'error': self._reason,
+            "field": self._field.name,
+            "error": self._reason,
         }
 
 
@@ -106,21 +95,21 @@ class Field(t.Generic[T]):
     deserialize_none: bool
 
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name')
-        self.display_name = kwargs.get('display_name')
-        self.required = kwargs.get('required', True)
-        self.read_only = kwargs.get('read_only', False)
-        self.write_only = kwargs.get('write_only', False)
-        self.default = kwargs.get('default', NO_DEFAULT_MARKER)
-        self.unbound = kwargs.get('unbound', False)
-        self.source = kwargs.get('source')
-        self.deserialize_none = kwargs.get('deserialize_none', False)
+        self.name = kwargs.get("name")
+        self.display_name = kwargs.get("display_name")
+        self.required = kwargs.get("required", True)
+        self.read_only = kwargs.get("read_only", False)
+        self.write_only = kwargs.get("write_only", False)
+        self.default = kwargs.get("default", NO_DEFAULT_MARKER)
+        self.unbound = kwargs.get("unbound", False)
+        self.source = kwargs.get("source")
+        self.deserialize_none = kwargs.get("deserialize_none", False)
 
     def update_name(self, name: str) -> None:
         if self.name is None:
             self.name = name
         if self.display_name is None:
-            self.display_name = ' '.join(v.capitalize() for v in self.name.split('_'))
+            self.display_name = " ".join(v.capitalize() for v in self.name.split("_"))
         if self.source is None:
             self.source = self.name
 
@@ -156,15 +145,14 @@ class SchemaMeta(ABCMeta):
                 attribute.update_name(key)
                 fields[attribute.name] = attribute
 
-        attributes['fields'] = fields
+        attributes["fields"] = fields
 
         klass = type.__new__(mcs, classname, base_classes, attributes)
 
         return klass
 
 
-class Schema(t.Generic[T], metaclass = SchemaMeta):
-
+class Schema(t.Generic[T], metaclass=SchemaMeta):
     def __init__(self, fields: t.Optional[t.Mapping[str, Field]] = None):
         if fields is not None:
             self.fields = copy.copy(self.fields)
@@ -174,26 +162,17 @@ class Schema(t.Generic[T], metaclass = SchemaMeta):
 
     @property
     def default(self) -> Serialized:
-        return {
-            name: field.default
-            for name, field in
-            self.fields.items()
-        }
+        return {name: field.default for name, field in self.fields.items()}
 
     def serialize(self, instance: object) -> Serialized:
-        return {
-            field.name: field.extract(instance, self)
-            for field in
-            self.fields.values()
-            if not field.write_only
-        }
+        return {field.name: field.extract(instance, self) for field in self.fields.values() if not field.write_only}
 
     def deserialize_raw(self, serialized: Serialized) -> Serialized:
         errors = []
         values = {}
 
         if not isinstance(serialized, t.Mapping):
-            raise DeserializationError((ValidationError('invalid input format'),))
+            raise DeserializationError((ValidationError("invalid input format"),))
 
         for field in self.fields.values():
             if field.read_only:

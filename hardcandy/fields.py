@@ -4,15 +4,21 @@ import typing as t
 from distutils.util import strtobool
 from enum import Enum as _Enum
 
-from hardcandy.schema import Field, FieldValidationError, T, Primitive, Schema, BaseValidationError
+from hardcandy.schema import (
+    BaseValidationError,
+    Field,
+    FieldValidationError,
+    Primitive,
+    Schema,
+    T,
+)
 
 
 class Integer(Field[int]):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._min = kwargs.get('min')
-        self._max = kwargs.get('max')
+        self._min = kwargs.get("min")
+        self._max = kwargs.get("max")
 
     @property
     def min(self) -> int:
@@ -34,7 +40,7 @@ class Integer(Field[int]):
                     _value,
                     self._min,
                     self._max,
-                )
+                ),
             )
         return _value
 
@@ -43,12 +49,11 @@ class Integer(Field[int]):
 
 
 class Float(Field[float]):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._min = kwargs.get('min')
-        self._max = kwargs.get('max')
-        self._max_precision = kwargs.get('max_precision')
+        self._min = kwargs.get("min")
+        self._max = kwargs.get("max")
+        self._max_precision = kwargs.get("max_precision")
 
     def serialize(self, value: T, instance: object, schema: Schema) -> Primitive:
         if self._max_precision is None:
@@ -67,7 +72,7 @@ class Float(Field[float]):
                     _value,
                     self._min,
                     self._max,
-                )
+                ),
             )
         return _value
 
@@ -76,7 +81,6 @@ class Float(Field[float]):
 
 
 class Bool(Field[bool]):
-
     def deserialize(self, value: Primitive, schema: Schema) -> bool:
         try:
             return strtobool(str(value))
@@ -88,11 +92,10 @@ class Bool(Field[bool]):
 
 
 class Text(Field[str]):
-
     def __init__(self, pattern: t.Optional[re.Pattern] = None, **kwargs):
         super().__init__(**kwargs)
-        self._min = kwargs.get('min')
-        self._max = kwargs.get('max')
+        self._min = kwargs.get("min")
+        self._max = kwargs.get("max")
         self._pattern = pattern
 
     def deserialize(self, value: Primitive, schema: Schema) -> str:
@@ -111,7 +114,7 @@ class Text(Field[str]):
                     len(_value),
                     self._min,
                     self._max,
-                )
+                ),
             )
 
         if self._pattern is not None and not self._pattern.match(_value):
@@ -124,7 +127,6 @@ class Text(Field[str]):
 
 
 class MultiChoiceField(Field[str]):
-
     def __init__(self, choices: t.AbstractSet[str], soft_match: bool = False, **kwargs):
         super().__init__(**kwargs)
         self._choices = choices
@@ -146,7 +148,6 @@ class MultiChoiceField(Field[str]):
 
 
 class Enum(Field[_Enum]):
-
     def __init__(self, enum: t.Type[_Enum], soft_match: bool = False, **kwargs):
         super().__init__(**kwargs)
         self._enum = enum
@@ -172,8 +173,7 @@ class Enum(Field[_Enum]):
 
 
 class Datetime(Field[datetime.datetime]):
-
-    def __init__(self, time_format: str = '%d/%m/%Y %H:%M:%S', **kwargs):
+    def __init__(self, time_format: str = "%d/%m/%Y %H:%M:%S", **kwargs):
         super().__init__(**kwargs)
         self._time_format = time_format
 
@@ -191,7 +191,6 @@ class Datetime(Field[datetime.datetime]):
 
 
 class List(Field[T]):
-
     def __init__(self, field: Field, **kwargs):
         super().__init__(**kwargs)
         self._field = field
@@ -201,25 +200,16 @@ class List(Field[T]):
         self._field.update_name(self.name)
 
     def serialize(self, value: T, instance: object, schema: Schema) -> Primitive:
-        return [
-            self._field.serialize(item, instance, schema)
-            for item in
-            value
-        ]
+        return [self._field.serialize(item, instance, schema) for item in value]
 
     def deserialize(self, value: Primitive, schema: Schema) -> T:
         if not isinstance(value, t.Iterable) or isinstance(value, str):
-            raise FieldValidationError(self, 'Expected list')
+            raise FieldValidationError(self, "Expected list")
 
-        return [
-            self._field.deserialize(item, schema)
-            for item in
-            value
-        ]
+        return [self._field.deserialize(item, schema) for item in value]
 
 
 class Related(Field[T]):
-
     def __init__(self, schema: Schema, **kwargs):
         super().__init__(**kwargs)
         self._schema = schema
@@ -235,7 +225,6 @@ class Related(Field[T]):
 
 
 class SelfRelated(Field[T]):
-
     def serialize(self, value: T, instance: object, schema: Schema) -> Primitive:
         return schema.serialize(value)
 
@@ -247,22 +236,20 @@ class SelfRelated(Field[T]):
 
 
 class Lambda(Field[T]):
-
     def __init__(self, extractor: t.Callable[[object], Primitive], **kwargs):
-        kwargs['unbound'] = True
-        kwargs['read_only'] = True
+        kwargs["unbound"] = True
+        kwargs["read_only"] = True
         super().__init__(**kwargs)
         self._extractor = extractor
 
     def deserialize(self, value: Primitive, schema: Schema) -> T:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def serialize(self, value: T, instance: object, schema: Schema) -> Primitive:
         return self._extractor(instance)
 
 
 class CoalesceField(Field[T]):
-
     def __init__(self, fields: t.Sequence[Field], **kwargs):
         super().__init__(**kwargs)
         self._fields = fields
