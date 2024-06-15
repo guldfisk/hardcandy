@@ -17,6 +17,7 @@ authors = ["None"]
 
 [tool.poetry.dependencies]
 python = "~3.9"
+yeetlong = { git = "https://github.com/guldfisk/yeetlong.git" }
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.1"
